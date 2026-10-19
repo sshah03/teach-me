@@ -1,0 +1,147 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  body { margin: 0; padding: 8px 0; font-family: var(--font); color: var(--fg); background: transparent; }
+  .g { display: grid; grid-template-columns: 64px repeat(16, minmax(0, 1fr)) 150px; gap: 3px 2px; align-items: center; }
+  .head { grid-column: 1 / -1; font-size: 12px; color: var(--fg-muted); margin-top: 6px; }
+  .lab { font: 12px var(--mono); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding-right: 4px; }
+  .c { height: 22px; display: flex; align-items: center; justify-content: center; }
+  .dot { width: 9px; height: 9px; border-radius: 50%; }
+  .dot.stored { background: var(--fg-muted); }
+  .dot.hit { background: var(--fg); }
+  .dot.miss { background: transparent; border: 2px solid var(--accent); width: 12px; height: 12px; }
+  .bit { height: 26px; border: 1px solid var(--border); border-radius: 3px; font: 12px var(--mono); color: var(--fg-muted); display: flex; align-items: center; justify-content: center; }
+  .bit.on { background: var(--fg); border-color: var(--fg); color: var(--bg); }
+  .bit.miss { border: 2px solid var(--accent); color: var(--accent); }
+  .bit.new { animation: pop .5s ease; }
+  @keyframes pop { 0% { transform: scale(1.35); } 100% { transform: scale(1); } }
+  .idx { font: 12px var(--mono); color: var(--fg-muted); text-align: center; }
+  .v { font-size: 13px; padding-left: 8px; white-space: nowrap; }
+  .v.good { color: var(--good); }
+  .v.bad { color: var(--bad); }
+  .v.muted { color: var(--fg-muted); font-size: 12px; }
+  .v small { font-size: 12px; color: var(--fg-muted); }
+  .k-row { margin-top: 12px; }
+  input[type=text] { font: 12px var(--mono); color: var(--fg); background: var(--bg); border: 1px solid var(--border); border-radius: 6px; padding: 4px 8px; width: 120px; }
+  @media (max-width: 520px) {
+    .g { grid-template-columns: 52px repeat(16, minmax(0, 1fr)); }
+    .v { grid-column: 2 / -1; padding-left: 0; margin-bottom: 4px; }
+    .v:empty { display: none; }
+  }
+  @media (max-width: 340px) { .idx.odd { visibility: hidden; } }
+</style>
+</head>
+<body>
+<div class="g" id="g"></div>
+<div class="k-row">
+  <input type="text" id="w" placeholder="try a word" maxlength="12" aria-label="Word to look up">
+  <button type="button" id="add">Add it</button>
+  <button type="button" id="reset">Reset</button>
+</div>
+<script>
+(function () {
+  var M = 16, SEEDS = ['a', 'b', 'c'];
+  var START = ['cat', 'dog', 'fox'];
+  var ASKED = ['cat', 'lark', 'hog'];
+  var MAX_ADDED = 8;
+  var added = START.slice();
+  var lastBits = null;
+  var g = document.getElementById('g');
+  var input = document.getElementById('w');
+  var addBtn = document.getElementById('add');
+
+  // 32-bit FNV-1a. Each seed gives a different hash function.
+  function fnv(s) {
+    var h = 0x811c9dc5;
+    for (var i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 0x01000193) >>> 0; }
+    return h;
+  }
+  function pos(w) { return SEEDS.map(function (s) { return fnv(s + ':' + w) % M; }); }
+
+  function el(cls, text) {
+    var d = document.createElement('div');
+    d.className = cls;
+    if (text != null) d.textContent = text;
+    g.appendChild(d);
+    return d;
+  }
+  function verdict(cls, main, note) {
+    var d = el('v ' + cls, main);
+    if (note) { var s = document.createElement('small'); s.textContent = ' ' + note; d.appendChild(s); }
+  }
+
+  function draw() {
+    var bits = new Array(M).fill(0);
+    added.forEach(function (w) { pos(w).forEach(function (p) { bits[p] = 1; }); });
+    g.textContent = '';
+
+    el('head', 'added');
+    added.forEach(function (w) {
+      var ps = pos(w);
+      el('lab', w).title = w;
+      for (var i = 0; i < M; i++) {
+        var c = el('c');
+        if (ps.indexOf(i) >= 0) c.appendChild(Object.assign(document.createElement('div'), { className: 'dot stored' }));
+      }
+      el('v');
+    });
+
+    var typed = input.value.trim().toLowerCase();
+    var asked = ASKED.slice();
+    if (typed && asked.indexOf(typed) < 0) asked.push(typed);
+    var missCols = {};
+    asked.forEach(function (w) { pos(w).forEach(function (p) { if (!bits[p]) missCols[p] = 1; }); });
+
+    el('lab', 'bits');
+    var set = 0;
+    for (var i = 0; i < M; i++) {
+      var cls = 'bit' + (bits[i] ? ' on' : '') + (missCols[i] ? ' miss' : '');
+      if (lastBits && bits[i] && !lastBits[i]) cls += ' new';
+      el(cls, String(bits[i]));
+      set += bits[i];
+    }
+    el('v muted', set + ' of ' + M + ' set');
+    el('lab', '');
+    for (var j = 0; j < M; j++) el('idx' + (j % 2 ? ' odd' : ''), String(j));
+    el('v');
+    lastBits = bits;
+
+    el('head', 'asked');
+    asked.forEach(function (w) {
+      var ps = pos(w);
+      el('lab', w).title = w;
+      for (var i = 0; i < M; i++) {
+        var c = el('c');
+        if (ps.indexOf(i) >= 0) c.appendChild(Object.assign(document.createElement('div'), { className: 'dot ' + (bits[i] ? 'hit' : 'miss') }));
+      }
+      var allOn = ps.every(function (p) { return bits[p]; });
+      if (!allOn) verdict('good', 'definitely not');
+      else if (added.indexOf(w) >= 0) verdict('good', 'maybe', '(was added)');
+      else verdict('bad', 'maybe', '(never added)');
+    });
+
+    addBtn.disabled = !typed || added.indexOf(typed) >= 0 || added.length >= MAX_ADDED;
+  }
+
+  input.addEventListener('input', draw);
+  addBtn.addEventListener('click', function () {
+    var w = input.value.trim().toLowerCase();
+    if (!w || added.indexOf(w) >= 0 || added.length >= MAX_ADDED) return;
+    added.push(w);
+    input.value = '';
+    draw();
+  });
+  document.getElementById('reset').addEventListener('click', function () {
+    added = START.slice();
+    input.value = '';
+    lastBits = null;
+    draw();
+  });
+
+  draw();
+})();
+</script>
+</body>
+</html>

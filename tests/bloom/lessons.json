@@ -1,0 +1,58 @@
+{
+ "title": "Bloom filter answers",
+ "lessons": [
+  {
+   "title": "Bloom filter: maybe vs definitely not",
+   "kind": "data structure",
+   "why_here": "You'll meet it in front of slow lookups: RocksDB and Cassandra check one per on-disk table file before reading it, and caches use them to skip misses.",
+   "tldr": "A Bloom filter answers membership with 'definitely not' or 'maybe': no false negatives, some false positives.",
+   "intuition": "Picture a row of switches, all off. To add a word, run it through three hash functions (each turns the word into a switch number) and flip those switches on. To ask about a word, check its three switches. One off means it was never added. All on might be its own switches, or ones other words flipped.",
+   "explanation": "A filter has `m` bits and `k` hash functions. Adding an item sets its `k` bits; a lookup reads the same `k` bits. Bits only go from 0 to 1, so an added item's bits stay set: one 0 proves the item is absent. All 1s is only **maybe**, because other items may have set those bits.\n\nWith `n` items the false-positive rate is about (1 \u2212 e^(\u2212kn/m))^k. Ten bits per item with `k` = 7 gives about 0.8%, whatever the size of the items.\n\n- Use it to skip expensive lookups that usually miss, then confirm each maybe against the real data.\n- You can't delete: clearing a bit could erase other items. Counting Bloom filters use counters instead of bits to allow it.\n- Overfill it and nearly every answer becomes maybe.",
+   "in_this_change": "RocksDB keeps a Bloom filter per SST file when one is configured (its default filter policy is none), Cassandra one per SSTable by default. A read checks each file's filter and skips the files that say definitely not, so a key that isn't there usually costs no data-block reads. A false positive costs a wasted read, never a wrong result.",
+   "figure": {
+    "kind": "diagram",
+    "title": "Three questions, one bit array",
+    "caption": "Hog hits a 0, so definitely not. Lark hits only 1s set by others. Type a word, or add it.",
+    "file": "c1.html"
+   },
+   "takeaways": [
+    "A 0 bit proves absence; all 1s only means maybe.",
+    "The fuller the bit array, the more false positives."
+   ],
+   "quiz": [
+    {
+     "question": "The filter holds cat, dog and fox. Two of hog's three bits are 1 and one is 0. What does a lookup for hog answer?",
+     "choices": [
+      "Definitely not",
+      "Maybe",
+      "Maybe, with two-thirds confidence"
+     ],
+     "answer": 0,
+     "explanation": "A 0 bit can only mean hog was never added, since adding sets every one of its bits. Two 1s don't count toward anything; they were set by other words."
+    },
+    {
+     "question": "You keep `m` and `k` fixed and add twice as many items. What changes?",
+     "choices": [
+      "False positives get more likely; false negatives stay impossible",
+      "False negatives start to appear",
+      "Nothing, since the rate depends only on k",
+      "The oldest items' bits get cleared to make room"
+     ],
+     "answer": 0,
+     "explanation": "More items set more bits, so an absent item more often finds all its bits set. Bits are never cleared, so an added item can't come back definitely not."
+    }
+   ],
+   "sources": [
+    {
+     "title": "Bloom filter (Wikipedia)",
+     "url": "https://en.wikipedia.org/wiki/Bloom_filter"
+    },
+    {
+     "title": "RocksDB Bloom Filter (RocksDB wiki)",
+     "url": "https://github.com/facebook/rocksdb/wiki/RocksDB-Bloom-Filter"
+    }
+   ]
+  }
+ ],
+ "mode": "concept"
+}

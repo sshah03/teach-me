@@ -1,0 +1,15 @@
+{
+  "name": "teach-me",
+  "description": "The teach-me skill for Claude Code: lessons with interactive diagrams on the ideas behind a code change.",
+  "owner": {
+    "name": "sshah03",
+    "url": "https://github.com/sshah03"
+  },
+  "plugins": [
+    {
+      "name": "teach-me",
+      "source": "./",
+      "description": "Ask for the ideas behind a code change, or a concept you name, and get short lessons with interactive diagrams and a quiz, checked against the code."
+    }
+  ]
+}
